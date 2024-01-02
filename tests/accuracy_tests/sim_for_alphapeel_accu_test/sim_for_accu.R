@@ -274,7 +274,7 @@ for (ind in ((nIndPerGen + 1):nInd)) {
   }
 }
 
-rec_prob <- rec_count / (nInd * 2)
+rec_prob <- as.matrix(rec_count[2:nLociAll] / (nInd * 2))
 
 # ---- Write the files to disk ----
 
