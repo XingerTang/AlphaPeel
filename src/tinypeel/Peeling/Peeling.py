@@ -425,9 +425,13 @@ def collapsePointSeg(pointSeg, transmission):
 
     prev = np.full((4), 0.25, dtype=np.float32)
     for i in range(1, nLoci):
+        # e: probability of the segregation of loci i - 1 and i being the same
         e = transmission[i - 1]
+        # e2: probability of recombination event happening on both haplotypes at locus i
         e2 = e**2
+        # e1e: probability of recombination event happening on one of the halpotype at locus i
         e1e = e * (1 - e)
+        # e2i: probability of recombination event happening on neither of the haplotypes at locus i
         e2i = (1.0 - e) ** 2
         for j in range(4):
             tmp[j] = prev[j] * pointSeg[j, i - 1]
@@ -438,8 +442,9 @@ def collapsePointSeg(pointSeg, transmission):
         for j in range(4):
             tmp[j] = tmp[j] / sum_j
 
-        # !                  fm  fm  fm  fm
-        # !segregationOrder: pp, pm, mp, mm
+        # !                    fm  fm  fm  fm
+        # !segregationOrder:   pp, pm, mp, mm
+        # corresponding index:  0,  1,  2,  3
 
         new[0] = e2 * tmp[3] + e1e * (tmp[1] + tmp[2]) + e2i * tmp[0]
         new[1] = e2 * tmp[2] + e1e * (tmp[0] + tmp[3]) + e2i * tmp[1]
@@ -458,9 +463,13 @@ def collapsePointSeg(pointSeg, transmission):
     for i in range(
         nLoci - 2, -1, -1
     ):  # zero indexed then minus one since we skip the boundary.
+        # e is the probability of the segregation of loci i and i + 1 being the same
         e = transmission[i]
+        # e2: probability of recombination event happening on both haplotypes at locus i + 1
         e2 = e**2
+        # e1e: probability of recombination event happening on one of the halpotype at locus i + 1
         e1e = e * (1 - e)
+        # e2i: probability of recombination event happening on neither of the haplotypes at locus i + 1
         e2i = (1.0 - e) ** 2
 
         for j in range(4):
