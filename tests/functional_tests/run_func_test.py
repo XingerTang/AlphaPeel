@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 
 
 def read_file(file_path, **kwargs):
@@ -311,7 +312,6 @@ class TestClass:
             self.output_file_prefix = f"est.{self.test_cases}"
 
             self.generate_command()
-            print(self.command)
             os.system(self.command)
 
             self.output_file_path = os.path.join(
@@ -369,7 +369,9 @@ class TestClass:
 
     def test_rec(self):
         """
-        Run the test of the recombination functionality of AlphaPeel
+        Run the test of the recombination functionality of AlphaPeel,
+        to test whether AlphaPeel can take recombination events into
+        account while peeling
         """
         self.test_name = "test_rec"
         self.prepare_path()
@@ -427,6 +429,127 @@ class TestClass:
             self.command = "AlphaPeel "
             if self.test_cases == "geno_file":
                 self.arguments.pop("geno_error_prob")
+
+    def test_rec_input(self):
+        """
+        Run the test of the input options related to the recombination
+        """
+        self.test_name = "test_rec_input"
+        self.prepare_path()
+
+        self.arguments = {
+            "method": "multi",
+            "geno_threshold": ".5",
+            "geno": None,
+            "phased_geno_prob": None,
+        }
+        self.input_files = ["geno_file", "ped_file"]
+        self.input_file_depend_on_test_cases = ["geno_file", "rec_prob"]
+        self.output_file_to_check = "geno_0.5"
+
+        for self.test_cases in [
+            "no_input",
+            "rec_length",
+            "rec_prob",
+            "both_same",
+            "both_different",
+        ]:
+            # test case no_input: Test the default values of the recombination rate without any input
+            #           rec_length: Test the input option rec_length
+            #           rec_prob: Test the input option rec_prob
+            #           both_same: Test the case when both inputs coincide,
+            #                      whether AlphaPeel uses the values given
+            #                      by rec_prob (the more precise one)
+            #           both_different: Test the case when both inputs do not coincide,
+            #                           whether AlphaPeel raises the warning
+
+            self.output_file_prefix = f"{self.test_name}.{self.test_cases}"
+
+            if self.test_cases == "no_input":
+                self.generate_command()
+                os.system(self.command)
+
+                self.output_file_path = os.path.join(
+                    self.output_path,
+                    f"{self.output_file_prefix}.{self.output_file_to_check}.txt",
+                )
+                self.expected_file_path = os.path.join(
+                    self.path, f"true-{self.output_file_to_check}-{self.test_cases}.txt"
+                )
+
+                self.output = read_and_sort_file(self.output_file_path)
+                self.expected = read_and_sort_file(self.expected_file_path)
+
+                assert self.output == self.expected
+
+            elif self.test_cases == "rec_length":
+                self.arguments["rec_length"] = 3
+
+                self.generate_command()
+                os.system(self.command)
+
+                self.output_file_path = os.path.join(
+                    self.output_path,
+                    f"{self.output_file_prefix}.{self.output_file_to_check}.txt",
+                )
+                self.expected_file_path = os.path.join(
+                    self.path, f"true-{self.output_file_to_check}-{self.test_cases}.txt"
+                )
+
+                self.output = read_and_sort_file(self.output_file_path)
+                self.expected = read_and_sort_file(self.expected_file_path)
+
+                assert self.output == self.expected
+
+                self.arguments.pop(self.test_cases)
+
+            elif self.test_cases == "rec_prob":
+                self.input_files.append("rec_prob")
+
+                self.generate_command()
+                # os.system(self.command)
+
+                self.output_file_path = os.path.join(
+                    self.output_path,
+                    f"{self.output_file_prefix}.{self.output_file_to_check}.txt",
+                )
+                self.expected_file_path = os.path.join(
+                    self.path, f"true-{self.output_file_to_check}-{self.test_cases}.txt"
+                )
+
+                # self.output = read_and_sort_file(self.output_file_path)
+                self.expected = read_and_sort_file(self.expected_file_path)
+
+                # assert self.output == self.expected
+
+            elif self.test_cases == "both_same":
+                self.arguments["rec_length"] = 1
+
+                self.generate_command()
+                # os.system(self.command)
+
+                self.output_file_path = os.path.join(
+                    self.output_path,
+                    f"{self.output_file_prefix}.{self.output_file_to_check}.txt",
+                )
+                self.expected_file_path = os.path.join(
+                    self.path, f"true-{self.output_file_to_check}-{self.test_cases}.txt"
+                )
+
+                # self.output = read_and_sort_file(self.output_file_path)
+                self.expected = read_and_sort_file(self.expected_file_path)
+
+                # assert self.output == self.expected
+
+            elif self.test_cases == "both_different":
+                self.argument["rec_length"] = 0
+
+                self.generate_command()
+                stdout = subprocess.check_output(self.command, shell=True)
+
+                assert "" in stdout
+
+            self.command = "AlphaPeel "
 
     # the true values to check against are wrong for test_sex
     # needs to rewrite
