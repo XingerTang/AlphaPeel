@@ -329,4 +329,177 @@ The main peeling funciton of |Software| is given by ``tinypeel.Peeling.Peeling.p
 
 .. autofunction:: tinypeel.Peeling.Peeling.peel
 
+The peeling process consists of two parts:
+
+1. The first part performs a Baum-Welch-like algorithm over each family of each generation of the pedigree.
+   The details of the HMM are the following:
+   
+   - Hidden states: phased genotype.
+   - Time dimension: generation (parent -> child).
+   - Observed states: input genotype and sequence data.
+   - Emission function: combined with the observed states, are introduced via the ``penetrance`` of the peeling information container, which is generated from ``tinypeel.tinyhouse.ProbMath.getGenotypeProbabilities()``.
+     
+     - For genotype input: suppose genotype error is :math:`e`, the following table represents how the input genotype data is encoded to be the probabilities of the phased genotype data, with rows representing the phased genotypes and columns representing the input genotype data:
+
+       .. list-table::
+          :header-rows: 1
+
+          * - 
+            - aa
+            - aA
+            - Aa
+            - AA
+          * - 0
+            - 1 - e
+            - e/2
+            - e/2
+            - e/2
+          * - 1
+            - e/2
+            - 1 - e
+            - 1 - e
+            - e/2
+          * - 2
+            - e/2
+            - e/2
+            - e/2
+            - 1 - e
+
+     - For sequence input: suppose sequence error is :math:`e`, the following table represents how the input sequence data is encoded to be the phased genotype data, with :math:`r` representing the number of reference alleles and :math:`a` representing the number of alternative alleles.
+
+       .. list-table::
+          :header-rows: 1
+
+          * - phased genotype
+            - corresponding probability
+          * - aa
+            - :math:`(1 - e)^r e^a`
+          * - aA
+            - :math:`\left(\frac{1}{2}\right)^{r + a}`
+          * - Aa
+            - :math:`\left(\frac{1}{2}\right)^{r + a}`
+          * - AA
+            - :math:`e^r (1 - e)^a`
+
+      All the values are normalised before use. In the case that both sequence and genotype inputs are provided, the two probabilities are multiplied together.
+
+   - Transmission function: implemented via ``segregationTensor`` defined in ``tinypeel.tinyhouse.ProbMath()``. The ``segregationTensor`` is a 4D numpy array of float32 of size :math:`4 \times 4 \times 4 \times 4`, with 
+
+     * the first dimension represents the paternal genotype (``p``),
+
+     * the second dimension represents the maternal genotype (``m``),
+    
+     * the third dimension represents the child's genotype (``allele``), and
+    
+     * the last dimension represents the child's segregation (``seg``).
+
+     Mathematically, ``segregationTensor`` represents the probability of each combination of the sire's genotype, the dam's genotype,
+     child's genotype and segregation without any other information (:math:`P(p, m, allele, seg)`). The following are two examples:
+
+     * Example 1: Suppose ``allele = 0`` (genotype = aa) and ``seg = 0`` (segregation = pp), the values of ``segregationTensor[:, :, 0, 0]`` are the following
+
+     .. list-table::
+          :header-rows: 1
+
+          * - 
+            - m = aa
+            - m = aA
+            - m = Aa
+            - m = AA
+          * - p = aa
+            - 1
+            - 1
+            - 0
+            - 0
+          * - p = aA
+            - 1
+            - 1
+            - 0
+            - 0
+          * - p = Aa
+            - 0
+            - 0
+            - 0
+            - 0
+          * - p = AA
+            - 0
+            - 0
+            - 0
+            - 0
+
+     * Example 2: Suppose ``allele = 2`` (genotype = Aa) and ``seg = 1`` (segregation = pm), the values of ``segregationTensor[:, :, 2, 1]`` are the following
+
+     .. list-table::
+          :header-rows: 1
+
+          * - 
+            - m = aa
+            - m = aA
+            - m = Aa
+            - m = AA
+          * - p = aa
+            - 0
+            - 0
+            - 0
+            - 0
+          * - p = aA
+            - 0
+            - 0
+            - 0
+            - 0
+          * - p = Aa
+            - 1
+            - 0
+            - 1
+            - 0
+          * - p = AA
+            - 1
+            - 0
+            - 1
+            - 0
+
+     A pre-defined error :math:`e` is used here with ``segregationTensor = segregationTensor*(1-e) + e/4``.
+
+     This matrix can be used to generate ``ChildSegs``, which is the matrix controls how the information is passed across generations. By ``tinypeel.Peeling.Peeling.createChildSegs()``, the probabilities of each combination of sire's genotype, dam's genotype and child's genotype can be calculated via summing over the child's segregation states. 
+
+     .. autofunction:: tinypeel.Peeling.Peeling.createChildSegs
+
+     The information are passed with functions ``tinypeel.Peeling.Peeling.projectChildGenotypes()`` and ``tinypeel.Peeling.Peeling.projectParentGenotypes()``.
+
+     .. autofunction:: tinypeel.Peeling.Peeling.projectChildGenotypes
+
+     .. autofunction:: tinypeel.Peeling.Peeling.projectParentGenotypes
+
+     The pre-defined error :math:`e` is used in a similar way as the ``segregationTensor`` on the following variables:
+       
+     - ``JointParents``,
+     - ``probSire`` and ``probDam``,
+     - ``childValues``, and
+     - ``sirePosterior`` and ``damPosterior``,
+     
+     which are all intermediate values or the results of the transmission across generation.
+
+   - Probabilities update: The phased genotype probabilities are calculatd via ``anterior * penetrance * posterior``, which
+
+     * ``anterior``: is updated when peeling down, every time a new value is calculated.
+     * ``penetrance``: depends only on input.
+     * ``posterior``: is updated when peeling up, but only when a peeling cycle is finished.
+  
+2. The second part performs a Baum-Welch-like algorithm over each locus of each individual. This part is implemented only when the multi-locus peeling mode is used.
+   The detals of the HMM is the following:
+
+   - Hidden states: segregation states.
+   - Time dimension: locus (locus_i -> locus_i+1).
+   - Observed states: phased genotype probabilities from part 1.
+   - Emission function: same usage of :math:`e` as the ``segregationTensor``, but now on ``segregation``.
+
+     * matched segregation: :math:`1 - \frac{3}{4}e`,
+     * unmatched segregation: :math:`\frac{1}{4}e`.
+  
+   - Transmission function: first generate equal recombination rates across all loci, which the values are calculated by assuming there is exactly 1 recombination happened per snippet of input and the distances between each locus are equal. The transmission function is setting up as the following:
+
+     * if the segregation states are same at locus i and locus i + 1: :math:`(1 - e)^2`,
+     * if the segregation states are different by one parent at locus i and locus i + 1: :math:`e \times (1 - e)`,
+     * if the segregation states are different by both parents at locus i and locus i + 1: :math:`e^2`.
+
 .. |Software| replace:: AlphaPeel
