@@ -3,7 +3,7 @@ Getting Started
 ===============
 
 Install |Software|
------------------
+------------------
 
 Install via pip
 ===============
