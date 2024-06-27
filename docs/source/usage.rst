@@ -326,6 +326,7 @@ Code explanation
 ----------------
 
 The main peeling funciton of |Software| is given by ``tinypeel.Peeling.Peeling.peel()`` function:
+
 .. autofunction:: tinypeel.Peeling.Peeling.peel
 
 .. |Software| replace:: AlphaPeel
