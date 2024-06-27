@@ -322,4 +322,10 @@ Example ``.alt_allele_prob.txt`` file for four loci:
   0.145847
 
 
+Code explanation
+================
+
+The main peeling funciton of |Software| is given by ``tinypeel.Peeling.peel()`` function:
+.. autofunction:: tinypeel.Peeling.peel
+
 .. |Software| replace:: AlphaPeel

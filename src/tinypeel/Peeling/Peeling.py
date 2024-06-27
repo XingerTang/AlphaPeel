@@ -1,9 +1,6 @@
 from numba import jit, float32
 import numpy as np
 
-
-# Defining variables for peel up and peel down.
-# Ideally these would be characters, but numba does not support characters.
 PEEL_UP = 0
 PEEL_DOWN = 1
 
@@ -11,15 +8,26 @@ PEEL_DOWN = 1
 @jit(
     nopython=True,
     nogil=True,
-    locals={"e": float32, "e4": float32, "e16": float32, "e1e": float32},
+    locals={"e": float32, "e4": float32, "e1e": float32},
     fastmath=True,
 )
 def peel(family, operation, peelingInfo, singleLocusMode):
-    """
-    Main peeling function.
+    """This is the main peeling function.
+
+    :param family: The family object that the peeling is performed on.
+    :type family: class:`tinyhouse.Pedigree.Family`
+    :param operation: A flag to indicate the direction of the peeling process.
+        `0` if peeling up, and `1` if peeling down.
+    :type operation: int
+    :param peelingInfo: Peeling information container.
+    :type peelingInfo: class:`PeelingInfo.jit_peelingInformation`
+    :param singleLocusMode: A flag to indicate the mode of peeling.
+        `False` if using multi-locus peeling, and `True` if using single-locus peeling.
+    :type singleLocusMode: bool
     """
     isSexChrom = peelingInfo.isSexChrom
 
+    # An error term `e` and associated values that are used frequently
     e = 0.000001
     e1e = 1.0 - e
     e4 = e / 4
@@ -111,7 +119,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
         log_childToParents = np.log(childToParents[i])
         allToParents += log_childToParents
         parentsMinusChild[i] -= log_childToParents
-        # This is done to take away the setimate for an individual child from their parent's posterior term.
+        # This is done to take away the estimate for an individual child from their parent's posterior term.
     parentsMinusChild += allToParents
 
     # Move from a log-scale to a non-log scale and re-normalize.
@@ -160,9 +168,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
             if isSexChrom and peelingInfo.sex[child] == 1:  # 0 for male, 1 for female.
                 segregationTensor = peelingInfo.segregationTensorXX
 
-            # Option 1: Estimate without normalizing.
-            # estimateSegregation(segregationTensor, parentsMinusChild[i,:,:,:], childValues, pointSeg[child,:,:])
-            # Option 2: Estimate with normalizing. I think this is what we want.
+            # Estimate with normalizing.
             estimateSegregationWithNorm(
                 segregationTensor,
                 segregationTensor_norm,
@@ -182,8 +188,17 @@ def peel(family, operation, peelingInfo, singleLocusMode):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def getJointParents(probSire, probDam):
-    """
-    Create the joint parental genotypes based on the probabilities for each parent.
+    """Create the joint parental genotypes based on the probabilities for each parent.
+
+    :param probSire: the probability of each genotype of each locus of the sire
+        with information of the current child from previous peeling cycle (P(p))
+    :type probSire: 2D numpy array of float32 with size 4 x nLoci
+    :param probDam: the probability of each genotype of each locus of the dam
+        with information of the current child from previous peeling cycle (P(m))
+    :type probDam: 2D numpy array of float32 with size 4 x nLoci
+    :return: the probabilities of all the combinations of the sire's genotype and the dam's genotype
+        with information from previous peeling cycle (P(p, m))
+    :rtype: 3D numpy array of float32 with size 4 x 4 x nLoci
     """
     nLoci = probSire.shape[1]
     output = np.zeros(shape=(4, 4, nLoci), dtype=np.float32)
@@ -196,8 +211,17 @@ def getJointParents(probSire, probDam):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def createChildSegs(segregationTensor, currentSeg, output):
-    """
-    Create the child-specific segregation tensor using the child's currrent segregation estimate.
+    """Create the child-specific segregation tensor using the child's current segregation estimate.
+
+    :param segregationTensor: the probability of each combination of the sire's genotype, the dam's genotype,
+        child's genotype and segregation without any other information (P(p, m, allele, seg))
+    :type segregationTensor: 4D numpy array of float32 with size 4 x 4 x 4 x 4
+    :param currentSeg: The probability of each segregation of each locus of the child
+        with information from previous peeling cycle (P(seg))
+    :type currentSeg: 2D numpy array of float32 with size 4 x nLoci
+    :param output: the probability of each combination of the sire's genotype, the dam's genotype and
+        the child's genotype of each locus with information from previous peeling cycle (P(p, m, allele))
+    :type output: 4D numpy array of float32 with size 4 x 4 x 4 x nLoci
     """
     nLoci = currentSeg.shape[1]
     output[:, :, :, :] = 0.0
@@ -214,8 +238,20 @@ def createChildSegs(segregationTensor, currentSeg, output):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def projectChildGenotypes(childSegs, childValues, output):
-    """
-    Estimate the parental genotypes based on the child's genotypes and their segregation tensor.
+    """Estimate the parental genotypes based on the child's genotypes and their segregation tensor.
+
+    :param childSegs: the probability of each combination of the sire's genotype, the dam's genotype and
+        the child's genotype of each locus with information from previous peeling cycle
+        (P(p, m, allele))
+    :type childSegs: 4D numpy array of float32 with size 4 x 4 x 4 x nLoci
+    :param childValues: the probability of each genotype of each locus of the current child
+        given the information of itself and its later generations from previous peeling cycle
+        (P(allele))
+    :type childValues: 2D numpy array of float32 with size 4 x nLoci
+    :param output: the probability of each combination of the sire's genotype, the dam's genotype
+        given the information of later and current generations from previous peeling cycle
+        (P(p, m))
+    :type output: 3D numpy array of float32 with size 4 x 4 x nLoci
     """
     nLoci = childSegs.shape[3]
     output[:, :, :] = 0.0
@@ -230,8 +266,19 @@ def projectChildGenotypes(childSegs, childValues, output):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def projectParentGenotypes(childSegs, parentValues, output):
-    """
-    Project the parent genotypes down onto the child genotypes
+    """Project the parent genotypes down onto the child genotypes.
+
+    :param childSegs: the probability of each combination of the sire's genotype, the dam's genotype and
+        the child's genotype of each locus with information from previous peeling cycle
+        (P(p, m, allele))
+    :type childSegs: 4D numpy array of float32 with size 4 x 4 x 4 x nLoci
+    :param parentValues: the probability of each combination of sire's genotype and the dams's genotype
+        of each locus given the information of later and current generations from previous peeling cycle
+        without the information of the current child (P(p, m))
+    :type parentValues: 3D numpy array of float32 with size 4 x 4 x nLoci
+    :param output: the probability of child's genotype of each locus given the later and current generations
+        from previous peeling cycle without the information of the current child (P(allele))
+    :type output: 2D numpy array of float32 with size 4 x nLoci
     """
     nLoci = childSegs.shape[3]
     output[:, :] = 0.0
@@ -248,8 +295,27 @@ def projectParentGenotypes(childSegs, parentValues, output):
 def estimateSegregationWithNorm(
     segregationTensor, segregationTensor_norm, parentValues, childValues, output
 ):
-    """
-    Estimate with normalizing.
+    """Estimate with normalizing.
+
+    :param segregationTensor: the probability of each combination of the sire's genotype, the dam's genotype and
+        the child's genotype and segregation without any other information (P(p, m, allele, seg))
+    :type segregationTensor: 4D numpy array of float32 with size 4 x 4 x 4 x 4
+    :param segregationTensor_norm: the mean probability of each combination of the sire's genotype, the dam's genotype
+        and the child's genotype across the child's segregation without any other information
+        (1 / 4 x (P(p, m, allele)))
+    :type segregationTensor_norm: 3D numpy array of float32 with size 4 x 4 x 4
+    :param parentValues: the probability of each combination of sire's genotype and the dams's genotype
+        of each locus given the information of later and current generations from previous peeling cycle
+        without the information of the current child (P(p, m))
+    :type parentValues: 3D numpy array of float32 with size 4 x 4 x nLoci
+    :param childValues: the probability of each genotype of each locus of the current child
+        given the information of itself and its later generations from previous peeling cycle
+        (P(allele))
+    :type childValues: 2D numpy array of float32 with size 4 x nLoci
+    :param output: the probability of each segregation states of each locus of the current child
+        given the information of later and current generations from previous peeling cycle
+        (P(seg))
+    :type output: 2D numpy array of float32 with size 4 x nLoci
     """
     nLoci = childValues.shape[1]
     output[:, :] = 0.0
@@ -270,6 +336,19 @@ def estimateSegregationWithNorm(
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def combineAndReduceAxis1(jointEstimate, parentEstimate):
+    """Summing over axis 1 of jointEstimate with weights given by parentEstimate
+
+    :param jointEstimate: the probability of each combination of sire's genotype and the dams's genotype
+        of each locus given the information of later and current generations from previous peeling cycle
+        (P(p, m))
+    :type jointEstimate: 3D numpy array of float32 with size 4 x 4 x nLoci
+    :param parentEstimate: the probability of each genotype of each locus of the dam
+        with information of the current child from previous peeling cycle (P(m))
+    :type parentEstimate: 2D numpy array of float32 with size 4 x nLoci
+    :return: the probability of each genotype of each locus of the sire
+        given the information of later and current generations from previous peeling cycle (P(p))
+    :rtype: 2D numpy array of float32 with size 4 x nLoci
+    """
     nLoci = parentEstimate.shape[1]
     output = np.zeros((4, nLoci), dtype=np.float32)
     for p in range(4):
@@ -283,6 +362,19 @@ def combineAndReduceAxis1(jointEstimate, parentEstimate):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def combineAndReduceAxis0(jointEstimate, parentEstimate):
+    """Summing over axis 0 of jointEstimate with weights given by parentEstimate
+
+    :param jointEstimate: the probability of each combination of sire's genotype and the dams's genotype
+        of each locus given the information of later and current generations from previous peeling cycle
+        (P(p, m))
+    :type jointEstimate: 3D numpy array of float32 with size 4 x 4 x nLoci
+    :param parentEstimate: the probability of each genotype of each locus of the sire
+        with information of the current child from previous peeling cycle (P(p))
+    :type parentEstimate: 2D numpy array of float32 with size 4 x nLoci
+    :return: the probability of each genotype of each locus of the dam
+        given the information of later and current generations from previous peeling cycle (P(m))
+    :rtype: 2D numpy array of float32 with size 4 x nLoci
+    """
     nLoci = parentEstimate.shape[1]
     output = np.zeros((4, nLoci), dtype=np.float32)
     for p in range(4):
@@ -296,12 +388,15 @@ def combineAndReduceAxis0(jointEstimate, parentEstimate):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def expNorm2D(mat):
-    """
-    Matrix is 4 x 4 x nLoci:
-    Output is to take the exponential of the matrix and normalize each locus.
-    We need to make sure that there are not any overflow values.
+    """Output is to take the exponential of the matrix and normalize each locus.
+
+    :param mat: a 3D matrix with last axis represents the locus
+    :type mat: 3D numpy array of float32 with size 4 x 4 x nLoci
+    :return: the normalized exponential of the `mat`
+    :rtype: 3D numpy array of float32 with size 4 x 4 x nLoci
     """
     nLoci = mat.shape[2]
+    # We need to make sure that there are not any overflow values.
     for locus in range(nLoci):
         maxVal = mat[0, 0, locus]
         for p in range(4):
@@ -326,10 +421,12 @@ def expNorm2D(mat):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def expNorm1D(mat):
-    """
-    Matrix is 4 x 4 x nLoci
-    Output is to take the exponential of the matrix and normalize each locus.
-    We need to make sure that there are not any overflow values.
+    """Output is to take the exponential of the matrix and normalize each locus.
+
+    :param mat: a 2D matrix with last axis represents the locus
+    :type mat: 2D numpy array of float32 with size 4 x nLoci
+    :return: the normalized exponential of the `mat`
+    :rtype: 2D numpy array of float32 with size 4 x nLoci
     """
 
     nLoci = mat.shape[1]
@@ -357,9 +454,18 @@ def expNorm1D(mat):
     fastmath=True,
 )
 def collapsePointSeg(pointSeg, transmission):
-    """
-    This is the forward backward algorithm.
-    Segregation estimate state ordering: pp, pm, mp, mm
+    """Using Baum-Welch algorithm to calculate the segregation probabilities.
+
+    :param pointSeg: the probability of each segregation states of each locus of the current child
+        given the information of later and current generations from previous peeling cycle
+        (P(seg))
+        the segregation state ordering: pp, pm, mp, mm
+    :type pointSeg: 2D numpy array of float32 with size 4 x nLoci
+    :param transmission: transmission function based on the distance
+        (possibly recombination rate in future)
+    :type transmission: 1D numpy array of float32 with size (nLoci - 1)
+    :return: the probability of each segregation states of each locus of the current child
+        after the implemtation of Baum-Welch algorithm
     """
     nLoci = pointSeg.shape[1]
 
@@ -436,9 +542,12 @@ def collapsePointSeg(pointSeg, transmission):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def summing(vec):
-    """
-    Summing over axis 0,
-    equivalent to np.sum(vec, axis=0)
+    """Summing the input `vec` over axis 0, equivalent to np.sum(vec, axis=0).
+
+    :param vec: a vector
+    :type vec: numpy array with dimension > 1
+    :return: a vector
+    :rtype: numpy array with one less dimension compared to `vec`
     """
     total = np.zeros(vec.shape[1:], dtype=np.float32)
     for i in range(vec.shape[0]):
@@ -448,9 +557,12 @@ def summing(vec):
 
 @jit(nopython=True, nogil=True, fastmath=True)
 def summing_twice(vec):
-    """
-    Summing over axis 0 and 1,
-    equivalent to np.sum(vec, axis=(0, 1))
+    """Summing the input `vec` over axis 0 and 1, equivalent to np.sum(vec, axis=(0, 1)).
+
+    :param vec: a vector
+    :type vec: numpy array with dimension > 2
+    :return: a vector
+    :rtype: numpy array with one less dimension compared to `vec`
     """
     total = np.zeros(vec.shape[2:], dtype=np.float32)
     for i in range(vec.shape[0]):

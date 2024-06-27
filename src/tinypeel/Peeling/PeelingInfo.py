@@ -189,9 +189,7 @@ spec["anterior"] = float32[:, :, :]
 spec["posterior"] = float32[:, :, :]
 spec["penetrance"] = float32[:, :, :]
 spec["segregation"] = optional(float32[:, :, :])
-spec["pointSeg"] = optional(
-    float32[:, :, :]
-)  # I think we don't use this any more. Potentially could be dropped.
+spec["pointSeg"] = optional(float32[:, :, :])
 
 # Family terms. Each will be nFam x 4 x nLoci
 spec["posteriorSire_minusFam"] = float32[:, :, :]
@@ -220,6 +218,17 @@ spec["iteration"] = int64
 @jitclass(spec)
 class jit_peelingInformation(object):
     def __init__(self, nInd, nFam, nLoci, createSeg=True):
+        """Initiailize peeling information container
+
+        :param nInd: total number of individuals
+        :type nInd: int
+        :param nFam: total number of families
+        :type nFam: int
+        :param nLoci: number of loci of each individual
+        :type nLoci: int
+        :param createSeg: flag to create segregation, defaults to True
+        :type createSeg: bool, optional
+        """
         self.iteration = 0
         self.nInd = nInd
         self.nFam = nFam
