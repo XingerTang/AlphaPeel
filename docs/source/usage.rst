@@ -491,7 +491,11 @@ The peeling process consists of two parts:
    - Hidden states: segregation states.
    - Time dimension: locus (locus_i -> locus_i+1).
    - Observed states: phased genotype probabilities from part 1.
-   - Emission function: same usage of :math:`e` as the ``segregationTensor``, but now on ``segregation``.
+   - Emission function: A segregation estimate ``pointSeg`` is obtained by ``estimateSegregationWithNorm()``,
+
+     .. autofunction:: tinypeel.Peeling.Peeling.estimateSegregationWithNorm
+   
+     then same usage of :math:`e` as the ``segregationTensor`` is applied, but now on the resulting output of function for the Baum-Welch algorithm implementation:
 
      * matched segregation: :math:`1 - \frac{3}{4}e`,
      * unmatched segregation: :math:`\frac{1}{4}e`.
