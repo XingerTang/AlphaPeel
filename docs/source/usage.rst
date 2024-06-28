@@ -517,5 +517,9 @@ Possible improvements
    - single application of `e` can be used
    - the value of `e`can also be updated based on the Baum-Welch algorithm.
 3. Improvement in the posterior update of part 1: update more frequently.
+4. Improvement in the transmission funciton of part 2: more realistic value can be used for the cases that recombination events are happened.
+5. Improvement in the emission function of part 2: 
+   - the error term should be applied before the implementation of the Baum-Welch algorithm.
+   - more realistic values can be used.
 
 .. |Software| replace:: AlphaPeel
