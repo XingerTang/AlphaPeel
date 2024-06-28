@@ -502,4 +502,16 @@ The peeling process consists of two parts:
      * if the segregation states are different by one parent at locus i and locus i + 1: :math:`e \times (1 - e)`,
      * if the segregation states are different by both parents at locus i and locus i + 1: :math:`e^2`.
 
+=====================
+Possible improvements
+=====================
+
+1. Improvement in the emission function of the part 1:
+   - genotype input, more realistic matrix can be used.
+   - the updates of errors may can make use of the Baum-Welch algorithm.
+2. Improvement in the error term of the transmission funciton of the part 1:
+   - single application of `e` can be used
+   - the value of `e`can also be updated based on the Baum-Welch algorithm.
+3. Improvement in the posterior update of part 1: update more frequently.
+
 .. |Software| replace:: AlphaPeel
