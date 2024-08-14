@@ -1,6 +1,7 @@
 from numba import jit, float32, int64, optional, boolean
 from numba.experimental import jitclass
 import numpy as np
+from .utils import summing
 from collections import OrderedDict
 
 from ..tinyhouse import ProbMath
@@ -295,5 +296,5 @@ class jit_peelingInformation(object):
             * self.posterior[idn, :, :]
             * self.penetrance[idn, :, :]
         )
-        genoProbs = genoProbs / np.sum(genoProbs, 0)
+        genoProbs = genoProbs / summing(genoProbs)
         return genoProbs

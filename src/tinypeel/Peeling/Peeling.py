@@ -1,5 +1,6 @@
 from numba import jit, float32
 import numpy as np
+from .utils import summing, summing_twice
 
 PEEL_UP = 0
 PEEL_DOWN = 1
@@ -28,7 +29,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
     isSexChrom = peelingInfo.isSexChrom
 
     # An error term `e` and associated values that are used frequently
-    e = 0.000001
+    e = 0.000001  # First definition in peel function?
     e1e = 1.0 - e
     e4 = e / 4
 
@@ -74,13 +75,13 @@ def peel(family, operation, peelingInfo, singleLocusMode):
     # Create the joint parental genotypes based on the probabilities for each parent.
     jointParents = getJointParents(probSire, probDam)
     jointParents /= summing_twice(jointParents)
-    jointParents = jointParents * e1e + e / 16
+    jointParents = jointParents * e1e + e / 16  # Unclear error for Jointparents
     # There are 4 x 4 values for each locus in jointparents.
 
     # There are 4 values for each locus. Normalization is done here so that jointParents is as accurate as possible.
     # We need the posterior terms here for the peeling up step later.
-    probSire = probSire * e1e + e4
-    probDam = probDam * e1e + e4
+    probSire = probSire * e1e + e4  # Unclear error for probSire
+    probDam = probDam * e1e + e4  # Unclear error for probDam
 
     # Now construct the parental genotypes based on within-family information.
 
@@ -91,7 +92,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
         # We are estimating the parent's genotypes so the anterior term is ignored to avoid double counting.
         childValues = posterior[child] * penetrance[child]
         childValues /= summing(childValues)
-        childValues = e1e * childValues + e4
+        childValues = e1e * childValues + e4  # Unclear error for childValues
 
         # METHOD 1: Just use the current segregation of the child.
         currentSeg[:, :] = segregation[child, :, :]
@@ -145,12 +146,12 @@ def peel(family, operation, peelingInfo, singleLocusMode):
 
         sirePosterior = combineAndReduceAxis1(allToParents, probDam)
         sirePosterior /= summing(sirePosterior)
-        sirePosterior = sirePosterior * e1e + e4
+        sirePosterior = sirePosterior * e1e + e4  # Unclear error for sirePosterior
         peelingInfo.posteriorSire_new[fam] = sirePosterior
 
         damPosterior = combineAndReduceAxis0(allToParents, probSire)
         damPosterior /= summing(damPosterior)
-        damPosterior = damPosterior * e1e + e4
+        damPosterior = damPosterior * e1e + e4  # Unclear error for damPosterior
         peelingInfo.posteriorDam_new[fam] = damPosterior
 
     if (not singleLocusMode) and (operation == PEEL_DOWN):
@@ -161,7 +162,9 @@ def peel(family, operation, peelingInfo, singleLocusMode):
             child = family.offspring[i]
             childValues = posterior[child] * penetrance[child]
             childValues /= summing(childValues)
-            childValues = e1e * childValues + e4
+            childValues = (
+                e1e * childValues + e4
+            )  # Unclear error for childValues during peel down
 
             if isSexChrom and peelingInfo.sex[child] == 0:  # 0 for male, 1 for female.
                 segregationTensor = peelingInfo.segregationTensorXY
@@ -180,7 +183,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
             segregation[child] = (
                 e1e * collapsePointSeg(pointSeg[child], peelingInfo.transmissionRate)
                 + e4
-            )
+            )  # Unclear error for segregation during peel down
 
 
 # The following are a large number of "helper" jit functions that replace the einstien sums in the original scripts.
@@ -507,7 +510,9 @@ def collapsePointSeg(pointSeg, transmission):
     for locus in range(
         nLoci - 2, -1, -1
     ):  # zero indexed then minus one since we skip the boundary.
-        e = transmission[locus]
+        e = transmission[
+            locus
+        ]  # Error for segregation transmission / recombination rate
         e2 = e**2
         e1e = e * (1.0 - e)
         e2i = (1.0 - e) ** 2
@@ -538,34 +543,3 @@ def collapsePointSeg(pointSeg, transmission):
             seg[state, locus] = seg[state, locus] / sum_state
 
     return seg
-
-
-@jit(nopython=True, nogil=True, fastmath=True)
-def summing(vec):
-    """Summing the input `vec` over axis 0, equivalent to np.sum(vec, axis=0).
-
-    :param vec: a vector
-    :type vec: numpy array with dimension > 1
-    :return: a vector
-    :rtype: numpy array with one less dimension compared to `vec`
-    """
-    total = np.zeros(vec.shape[1:], dtype=np.float32)
-    for i in range(vec.shape[0]):
-        total += vec[i]
-    return total
-
-
-@jit(nopython=True, nogil=True, fastmath=True)
-def summing_twice(vec):
-    """Summing the input `vec` over axis 0 and 1, equivalent to np.sum(vec, axis=(0, 1)).
-
-    :param vec: a vector
-    :type vec: numpy array with dimension > 2
-    :return: a vector
-    :rtype: numpy array with one less dimension compared to `vec`
-    """
-    total = np.zeros(vec.shape[2:], dtype=np.float32)
-    for i in range(vec.shape[0]):
-        for j in range(vec.shape[1]):
-            total += vec[i, j]
-    return total

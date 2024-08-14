@@ -458,7 +458,7 @@ The peeling process consists of two parts:
             - 1
             - 0
 
-     A pre-defined error :math:`e` is used here with ``segregationTensor = segregationTensor*(1-e) + e/4``.
+     A pre-defined error :math:`e` is used here with ``segregationTensor = segregationTensor*(1-e) + e/4``. (mutation error)
 
      This matrix can be used to generate ``ChildSegs``, which is the matrix controls how the information is passed across generations. By ``tinypeel.Peeling.Peeling.createChildSegs()``, the probabilities of each combination of sire's genotype, dam's genotype and child's genotype can be calculated via summing over the child's segregation states. 
 
@@ -511,14 +511,17 @@ Possible improvements
 =====================
 
 1. Improvement in the emission function of the part 1:
+
    - genotype input, more realistic matrix can be used.
    - the updates of errors may can make use of the Baum-Welch algorithm.
 2. Improvement in the error term of the transmission funciton of the part 1:
-   - single application of `e` can be used
-   - the value of `e`can also be updated based on the Baum-Welch algorithm.
+
+   - single application of ``e`` can be used
+   - the value of ``e``can also be updated based on the Baum-Welch algorithm.
 3. Improvement in the posterior update of part 1: update more frequently.
 4. Improvement in the transmission funciton of part 2: more realistic value can be used for the cases that recombination events are happened.
 5. Improvement in the emission function of part 2: 
+
    - the error term should be applied before the implementation of the Baum-Welch algorithm.
    - more realistic values can be used.
 

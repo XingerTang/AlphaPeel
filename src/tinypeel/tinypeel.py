@@ -80,17 +80,24 @@ def peelingCycle(pedigree, peelingInfo, args, singleLocusMode=False):
         updatePosterior(pedigree, peelingInfo, sires, dams)
 
 
-# updatePosterior updates the posterior term for a specific set of sires and dams.
-# The updateSire and updateDam functions perform the updates for a specific sire
-# and specific dam by including all of the information from all of their families.
-# This update is currently not multithreaded. It is also currently not ideal --
-# right now the posterior term is updated for all of the sires/dams no matter
-# whether or not they have been changed since the last update.
-
-
 def updatePosterior(pedigree, peelingInfo, sires, dams):
-    # if pedigree.mapSireToFamilies is None or pedigree.mapDamToFamilies is None:
-    #     pedigree.setupFamilyMap()
+    """Updates the posterior term for a specific set of sires and dams.
+    The updateSire and updateDam functions perform the updates for a specific sire
+    and specific dam by including all of the information from all of their families.
+    This update is currently not multithreaded.
+    It is also currently not ideal -- right now the posterior term is updated
+    for all of the sires/dams no matter whether or not they have been changed
+    since the last update.
+
+    :param pedigree: The pedigree.
+    :type pedigree: class:`tinyhouse.Pedigree.Pedigree`
+    :param peelingInfo: The peeling information container.
+    :type peelingInfo: class:`PeelingInfo.jit_peelingInformation`
+    :param sires: A set of all sires.
+    :type sires: set of class:`tinyhouse.Pedigree.Individual`
+    :param dams: A set of all dams.
+    :type dams: set of class:`tinyhouse.Pedigree.Individual`
+    """
 
     for sire in sires:
         updateSire(sire, peelingInfo)
@@ -100,6 +107,14 @@ def updatePosterior(pedigree, peelingInfo, sires, dams):
 
 
 def updateSire(sire, peelingInfo):
+    """Posterior genotype probabilities updates for a specific sire
+    by including all of the information from all of his families.
+
+    :param sire: Sire.
+    :type sire: class:`tinyhouse.Pedigree.Individual`
+    :param peelingInfo: The peeling information container.
+    :type peelingInfo: class:`PeelingInfo.jit_peelingInformation`
+    """
     famList = [fam.idn for fam in sire.families]
     sire = sire.idn
     peelingInfo.posterior[sire, :, :] = 0
@@ -129,6 +144,14 @@ def updateSire(sire, peelingInfo):
 
 
 def updateDam(dam, peelingInfo):
+    """Posterior genotype probabilities updates for a specific dam
+    by including all of the information from all of her families.
+
+    :param sire: Dam.
+    :type sire: class:`tinyhouse.Pedigree.Individual`
+    :param peelingInfo: The peeling information container.
+    :type peelingInfo: class:`PeelingInfo.jit_peelingInformation`
+    """
     famList = [fam.idn for fam in dam.families]
     dam = dam.idn
     peelingInfo.posterior[dam, :, :] = 0
