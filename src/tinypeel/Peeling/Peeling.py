@@ -1,6 +1,5 @@
 from numba import jit, float32
 import numpy as np
-from .utils import summing, summing_twice
 
 PEEL_UP = 0
 PEEL_DOWN = 1
@@ -29,7 +28,7 @@ def peel(family, operation, peelingInfo, singleLocusMode):
     isSexChrom = peelingInfo.isSexChrom
 
     # An error term `e` and associated values that are used frequently
-    e = 0.000001  # First definition in peel function?
+    e = 0.00106  # First definition in peel function?
     e1e = 1.0 - e
     e4 = e / 4
 
@@ -482,10 +481,10 @@ def collapsePointSeg(pointSeg, transmission):
 
     prev = np.full((4), 0.25, dtype=np.float32)
     for locus in range(1, nLoci):
-        e = transmission[locus - 1]
-        e2 = e**2
-        e1e = e * (1.0 - e)
-        e2i = (1.0 - e) ** 2
+        r = transmission[locus - 1]
+        r2 = r**2
+        r1r = r * (1.0 - r)
+        r2i = (1.0 - r) ** 2
         for state in range(4):
             tmp[state] = prev[state] * pointSeg[state, locus - 1]
 
@@ -497,10 +496,10 @@ def collapsePointSeg(pointSeg, transmission):
 
         # !                  fm  fm  fm  fm
         # !segregationOrder: pp, pm, mp, mm
-        new[0] = e2 * tmp[3] + e1e * (tmp[1] + tmp[2]) + e2i * tmp[0]
-        new[1] = e2 * tmp[2] + e1e * (tmp[0] + tmp[3]) + e2i * tmp[1]
-        new[2] = e2 * tmp[1] + e1e * (tmp[0] + tmp[3]) + e2i * tmp[2]
-        new[3] = e2 * tmp[0] + e1e * (tmp[1] + tmp[2]) + e2i * tmp[3]
+        new[0] = r2 * tmp[3] + r1r * (tmp[1] + tmp[2]) + r2i * tmp[0]
+        new[1] = r2 * tmp[2] + r1r * (tmp[0] + tmp[3]) + r2i * tmp[1]
+        new[2] = r2 * tmp[1] + r1r * (tmp[0] + tmp[3]) + r2i * tmp[2]
+        new[3] = r2 * tmp[0] + r1r * (tmp[1] + tmp[2]) + r2i * tmp[3]
 
         for state in range(4):
             seg[state, locus] *= new[state]
@@ -510,12 +509,10 @@ def collapsePointSeg(pointSeg, transmission):
     for locus in range(
         nLoci - 2, -1, -1
     ):  # zero indexed then minus one since we skip the boundary.
-        e = transmission[
-            locus
-        ]  # Error for segregation transmission / recombination rate
-        e2 = e**2
-        e1e = e * (1.0 - e)
-        e2i = (1.0 - e) ** 2
+        r = transmission[locus]
+        r2 = r**2
+        r1r = r * (1.0 - r)
+        r2i = (1.0 - r) ** 2
 
         for state in range(4):
             tmp[state] = prev[state] * pointSeg[state, locus + 1]
@@ -526,10 +523,10 @@ def collapsePointSeg(pointSeg, transmission):
         for state in range(4):
             tmp[state] = tmp[state] / sum_state
 
-        new[0] = e2 * tmp[3] + e1e * (tmp[1] + tmp[2]) + e2i * tmp[0]
-        new[1] = e2 * tmp[2] + e1e * (tmp[0] + tmp[3]) + e2i * tmp[1]
-        new[2] = e2 * tmp[1] + e1e * (tmp[0] + tmp[3]) + e2i * tmp[2]
-        new[3] = e2 * tmp[0] + e1e * (tmp[1] + tmp[2]) + e2i * tmp[3]
+        new[0] = r2 * tmp[3] + r1r * (tmp[1] + tmp[2]) + r2i * tmp[0]
+        new[1] = r2 * tmp[2] + r1r * (tmp[0] + tmp[3]) + r2i * tmp[1]
+        new[2] = r2 * tmp[1] + r1r * (tmp[0] + tmp[3]) + r2i * tmp[2]
+        new[3] = r2 * tmp[0] + r1r * (tmp[1] + tmp[2]) + r2i * tmp[3]
 
         for state in range(4):
             seg[state, locus] *= new[state]
@@ -543,3 +540,34 @@ def collapsePointSeg(pointSeg, transmission):
             seg[state, locus] = seg[state, locus] / sum_state
 
     return seg
+
+
+@jit(nopython=True, nogil=True, fastmath=True)
+def summing(vec):
+    """Summing the input `vec` over axis 0, equivalent to np.sum(vec, axis=0).
+
+    :param vec: a vector
+    :type vec: numpy array with dimension > 1
+    :return: a vector
+    :rtype: numpy array with one less dimension compared to `vec`
+    """
+    total = np.zeros(vec.shape[1:], dtype=np.float32)
+    for i in range(vec.shape[0]):
+        total += vec[i]
+    return total
+
+
+@jit(nopython=True, nogil=True, fastmath=True)
+def summing_twice(vec):
+    """Summing the input `vec` over axis 0 and 1, equivalent to np.sum(vec, axis=(0, 1)).
+
+    :param vec: a vector
+    :type vec: numpy array with dimension > 2
+    :return: a vector
+    :rtype: numpy array with one less dimension compared to `vec`
+    """
+    total = np.zeros(vec.shape[2:], dtype=np.float32)
+    for i in range(vec.shape[0]):
+        for j in range(vec.shape[1]):
+            total += vec[i, j]
+    return total

@@ -1,7 +1,6 @@
 from numba import jit, float32, int64, optional, boolean
 from numba.experimental import jitclass
 import numpy as np
-from .utils import summing
 from collections import OrderedDict
 
 from ..tinyhouse import ProbMath
@@ -112,7 +111,7 @@ def setupTransmission(length, peelingInfo):
         peelingInfo.transmissionRate[i] = distance
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def setGenotypeStatusGenotypes(idn, genotypes, peelingInfo):
     nLoci = len(genotypes)
     if genotypes is not None:
@@ -122,7 +121,7 @@ def setGenotypeStatusGenotypes(idn, genotypes, peelingInfo):
             )
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def setGenotypeStatusReads(idn, reads0, reads1, peelingInfo):
     nLoci = len(reads0)
     if reads0 is not None and reads1 is not None:
@@ -160,7 +159,7 @@ def addPenetranceFromExternalFile(pedigree, peelingInfo, fileName, args):
                 e = (e + 1) % 4
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def getHetMidpoint(geno):
     nLoci = len(geno)
     midpoint = int(nLoci / 2)
@@ -246,7 +245,7 @@ class jit_peelingInformation(object):
 
     def construct(self, createSeg=True):
         baseValue = 0.25
-        self.sex = np.full(self.nInd, 0, dtype=np.int64)
+        self.sex = np.zeros(self.nInd, dtype=np.int64)
 
         self.genotyped = np.full((self.nInd, self.nLoci), False, dtype=np.bool_)
 
@@ -285,16 +284,27 @@ class jit_peelingInformation(object):
             (self.nFam, 4, self.nLoci), baseValue, dtype=np.float32
         )
 
-        self.genoError = np.full((self.nLoci), 0, dtype=np.float32)
-        self.seqError = np.full((self.nLoci), 0, dtype=np.float32)
+        self.genoError = np.zeros((self.nLoci), dtype=np.float32)
+        self.seqError = np.zeros((self.nLoci), dtype=np.float32)
         self.maf = np.full((self.nLoci), 0.5, dtype=np.float32)
-        self.transmissionRate = np.full((self.nLoci - 1), 0, dtype=np.float32)
+        self.transmissionRate = np.zeros((self.nLoci - 1), dtype=np.float32)
 
     def getGenoProbs(self, idn):
-        genoProbs = (
-            self.anterior[idn, :, :]
-            * self.posterior[idn, :, :]
-            * self.penetrance[idn, :, :]
-        )
+        genoProbs = self.anterior[idn] * self.posterior[idn] * self.penetrance[idn]
         genoProbs = genoProbs / summing(genoProbs)
         return genoProbs
+
+
+@jit(nopython=True, nogil=True, fastmath=True)
+def summing(vec):
+    """Summing the input `vec` over axis 0, equivalent to np.sum(vec, axis=0).
+
+    :param vec: a vector
+    :type vec: numpy array with dimension > 1
+    :return: a vector
+    :rtype: numpy array with one less dimension compared to `vec`
+    """
+    total = np.zeros(vec.shape[1:], dtype=np.float32)
+    for i in range(vec.shape[0]):
+        total += vec[i]
+    return total

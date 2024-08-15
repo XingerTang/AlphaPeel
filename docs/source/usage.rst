@@ -486,7 +486,7 @@ The peeling process consists of two parts:
      * ``posterior``: is updated when peeling up, but only when a peeling cycle is finished.
   
 2. The second part performs a Baum-Welch-like algorithm over each locus of each individual. This part is implemented only when the multi-locus peeling mode is used.
-   The detals of the HMM is the following:
+   The details of the HMM is the following:
 
    - Hidden states: segregation states.
    - Time dimension: locus (locus_i -> locus_i+1).
@@ -500,11 +500,11 @@ The peeling process consists of two parts:
      * matched segregation: :math:`1 - \frac{3}{4}e`,
      * unmatched segregation: :math:`\frac{1}{4}e`.
   
-   - Transmission function: first generate equal recombination rates across all loci, which the values are calculated by assuming there is exactly 1 recombination happened per snippet of input and the distances between each locus are equal. The transmission function is setting up as the following:
+   - Transmission function: first generate equal recombination rates `r` across all loci, which the values are calculated by assuming there is exactly 1 recombination happened per snippet of input and the distances between each locus are equal. The transmission function is setting up as the following:
 
-     * if the segregation states are same at locus i and locus i + 1: :math:`(1 - e)^2`,
-     * if the segregation states are different by one parent at locus i and locus i + 1: :math:`e \times (1 - e)`,
-     * if the segregation states are different by both parents at locus i and locus i + 1: :math:`e^2`.
+     * if the segregation states are same at locus i and locus i + 1: :math:`(1 - r)^2`,
+     * if the segregation states are different by one parent at locus i and locus i + 1: :math:`r \times (1 - r)`,
+     * if the segregation states are different by both parents at locus i and locus i + 1: :math:`r^2`.
 
 =====================
 Possible improvements
@@ -517,12 +517,18 @@ Possible improvements
 2. Improvement in the error term of the transmission funciton of the part 1:
 
    - single application of ``e`` can be used
-   - the value of ``e``can also be updated based on the Baum-Welch algorithm.
-3. Improvement in the posterior update of part 1: update more frequently.
-4. Improvement in the transmission funciton of part 2: more realistic value can be used for the cases that recombination events are happened.
+   - the value of ``e`` can also be updated based on the Baum-Welch algorithm.
+3. Improvement in the posterior update of part 1: update more frequently. (x)
+4. Improvement in the transmission funciton of part 2: the updates of recombination rates may can make use of the Baum-Welch algorithm.
 5. Improvement in the emission function of part 2: 
 
    - the error term should be applied before the implementation of the Baum-Welch algorithm.
    - more realistic values can be used.
+
+New: 
+
+6. Implementation of W-shape cycles to fully use the information of generations with dense information.
+7. Implementation of a logic filter of phasing before the computation.
+
 
 .. |Software| replace:: AlphaPeel
