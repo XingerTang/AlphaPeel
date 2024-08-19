@@ -527,7 +527,8 @@ Possible improvements
 
 New: 
 
-6. Implementation of W-shape cycles to fully use the information of generations with dense information.
+6. Implementation of W-shape cycles update to fully use the information of generations with dense information. 
+7. Implementation of random update.
 7. Implementation of a logic filter of phasing before the computation.
 
 
